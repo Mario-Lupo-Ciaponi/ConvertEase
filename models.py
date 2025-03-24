@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Numeric, DateTime, DECIMAL
 from sqlalchemy.orm import declarative_base
 
 from datetime import datetime
@@ -26,7 +26,7 @@ class ConvertionHistory(Base):
         nullable=False,
     )
     amount = Column(
-        Integer,
+        DECIMAL(10, 2),
         nullable=False,
     )
     result = Column(

@@ -1,10 +1,13 @@
 from datetime import datetime
 
 import customtkinter as ctk
+from customtkinter import END
+
 from tkinter import messagebox
 
 from sqlalchemy.orm import sessionmaker
 from models import engine, ConvertionHistory
+from exeptions import NegativeValueError, EmptyFieldError
 
 import requests
 
@@ -18,7 +21,7 @@ class ConvertEaseApp(ctk.CTk):  # Inherits from the CTk class
         super().__init__()
 
         self.title("ConvertEase")
-        self.geometry("450x500")  # Adjusted size for better spacing
+        self.geometry("450x520")  # Adjusted size for better spacing
 
         self.theme_color = "dark"
         ctk.set_appearance_mode(self.theme_color)
@@ -43,9 +46,16 @@ class ConvertEaseApp(ctk.CTk):  # Inherits from the CTk class
         )
         self.entry_for_currency_to_convert.pack(pady=10)
 
+        self.swap_currency_button = ctk.CTkButton(self,
+                                                  text="🔄",
+                                                  width=40,
+                                                  command=self.swap_currency_places)
+        self.swap_currency_button.pack(pady=15)
+
         # To Currency Label and Entry
         self.to_currency_label = ctk.CTkLabel(self, text="To Currency:", font=("Helvetica", 12))
         self.to_currency_label.pack(pady=5)
+
 
         self.entry_for_currency_wanted = ctk.CTkEntry(
             self,
@@ -60,16 +70,36 @@ class ConvertEaseApp(ctk.CTk):  # Inherits from the CTk class
         self.convert_button.pack(pady=20)
 
         # Result Label
-        self.result_label = ctk.CTkLabel(self, text="", font=("Helvetica", 14), text_color="green")
-        self.result_label.pack(pady=10)
+        self.result_label = ctk.CTkLabel(self, text="No convertion yet", font=("Helvetica", 14), text_color="green")
+        self.result_label.pack(pady=15)
 
-        self.see_history_button = ctk.CTkButton(self, text="See Convertion History", command=self.open_history_window)
+        self.see_history_button = ctk.CTkButton(self,
+                                                text="See Convertion History",
+                                                command=self.open_history_window
+                                                )
         self.see_history_button.pack(pady=5)
 
     def convert_currency(self):
-        amount = int(self.entry_for_amount.get())
-        from_currency = self.entry_for_currency_to_convert.get().upper()
-        to_currency = self.entry_for_currency_wanted.get().upper()
+        try:
+            amount = float(self.entry_for_amount.get())
+
+            if amount < 0:
+                raise NegativeValueError
+
+            from_currency = self.entry_for_currency_to_convert.get().upper()
+            to_currency = self.entry_for_currency_wanted.get().upper()
+
+            if from_currency.split() == "" or to_currency.split() == "":
+                raise EmptyFieldError
+        except ValueError:
+            messagebox.showerror("Error", "The amount must be of float type!")
+            return
+        except NegativeValueError:
+            messagebox.showerror("Error", "The amount must be a positive number")
+            return
+        except EmptyFieldError:
+            messagebox.showerror("Error", "Please fill both currency fields!")
+            return
 
         URL = f"https://api.currencyapi.com/v3/latest?apikey={API_KEY}&currencies={to_currency}&base_currency={from_currency}"
 
@@ -77,7 +107,7 @@ class ConvertEaseApp(ctk.CTk):  # Inherits from the CTk class
         data = response.json()
 
         if "errors" in data.keys():
-            messagebox.showerror("Error", "Invalid currencies!")
+            messagebox.showerror("Error", "Please select a valid currency")
             return
 
         result = round(data["data"][to_currency]["value"], 2) * amount
@@ -97,8 +127,18 @@ class ConvertEaseApp(ctk.CTk):  # Inherits from the CTk class
 
             messagebox.showinfo("Success", "Conversion recorded successfully!")
 
+    def swap_currency_places(self):
+        from_currency_value = self.entry_for_currency_to_convert.get()
+        to_currency_value = self.entry_for_currency_wanted.get()
 
-    def open_history_window(self):
+        self.entry_for_currency_to_convert.delete(0, END)
+        self.entry_for_currency_wanted.delete(0, END)
+
+        self.entry_for_currency_to_convert.insert(0, to_currency_value)
+        self.entry_for_currency_wanted.insert(0, from_currency_value)
+
+    @staticmethod
+    def open_history_window():
         def show_conversations():
             with Session() as session:
                 conversions_history = session.query(ConvertionHistory).all()
