@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import customtkinter as ctk
 from tkinter import messagebox
 
@@ -59,7 +61,10 @@ class ConvertEaseApp(ctk.CTk):  # Inherits from the CTk class
 
         # Result Label
         self.result_label = ctk.CTkLabel(self, text="", font=("Helvetica", 14), text_color="green")
-        self.result_label.pack(pady=15)
+        self.result_label.pack(pady=10)
+
+        self.see_history_button = ctk.CTkButton(self, text="See Convertion History", command=self.open_history_window)
+        self.see_history_button.pack(pady=5)
 
     def convert_currency(self):
         amount = int(self.entry_for_amount.get())
@@ -72,11 +77,64 @@ class ConvertEaseApp(ctk.CTk):  # Inherits from the CTk class
         data = response.json()
 
         if "errors" in data.keys():
-            messagebox.showerror("Error", data["errors"]["currencies"][0])
+            messagebox.showerror("Error", "Invalid currencies!")
             return
 
         result = round(data["data"][to_currency]["value"], 2) * amount
         self.result_label.configure(text=f"Converted {amount} {from_currency} to {to_currency} = {result}")
+
+        with Session() as session:
+            convertion_history_record = ConvertionHistory(
+                from_currency=from_currency,
+                to_currency=to_currency,
+                amount=amount,
+                result=result,
+                date_of_creation=datetime.now()
+            )
+
+            session.add(convertion_history_record)
+            session.commit()
+
+            messagebox.showinfo("Success", "Conversion recorded successfully!")
+
+
+    def open_history_window(self):
+        def show_conversations():
+            with Session() as session:
+                conversions_history = session.query(ConvertionHistory).all()
+
+                return conversions_history
+        
+        
+        def add_to_frame():
+            conversions_history = show_conversations()
+            
+            for conversion in conversions_history:
+                row_info = (f"{conversion.date_of_creation.strftime('%Y-%m-%d %H:%M:%S')} - "
+                       f"{conversion.amount} {conversion.from_currency} -> "
+                       f"{conversion.to_currency} = {conversion.result}")
+
+                label_record = ctk.CTkLabel(
+                    history_window,
+                    text=row_info,
+                    font=("Helvetica", 12),
+                    justify="center",
+                    wraplength=300,
+                    anchor="w"
+                )
+                label_record.pack(pady=5)
+
+
+        history_window = ctk.CTkToplevel()
+        history_window.title(f"History of transactions")
+        history_window.geometry("440x330")
+
+        history_window = ctk.CTkScrollableFrame(history_window,
+                                                        width=320,
+                                                        orientation="vertical")
+        history_window.pack(pady=15)
+
+        add_to_frame()
 
 
 if __name__ == '__main__':
